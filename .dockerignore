@@ -1,0 +1,7 @@
+wa-bridge.exe
+wa-bridge
+*.db
+data/
+.env
+.git
+test_*.go

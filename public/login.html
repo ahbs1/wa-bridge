@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WA Bridge — Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="/style.css" />
+    <style>
+        .login-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .login-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 8px 48px rgba(0, 0, 0, 0.4);
+        }
+
+        .login-card h1 {
+            text-align: center;
+            font-size: 1.5rem;
+            margin-bottom: 4px;
+        }
+
+        .login-card .subtitle {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+            margin-bottom: 28px;
+        }
+
+        .login-card .logo-center {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .login-card .error-msg {
+            background: var(--red-glow);
+            color: var(--red);
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            margin-bottom: 12px;
+            display: none;
+        }
+
+        .login-card .success-msg {
+            background: var(--green-glow);
+            color: var(--green);
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            margin-bottom: 12px;
+            display: none;
+        }
+
+        .login-card .toggle {
+            text-align: center;
+            margin-top: 16px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .login-card .toggle a {
+            color: var(--accent);
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .login-card .toggle a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg-gradient"></div>
+    <div class="bg-grid"></div>
+
+    <div class="login-wrapper">
+        <div class="login-card">
+            <div class="logo-center">
+                <div class="logo-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path
+                            d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                    </svg>
+                </div>
+            </div>
+            <h1 id="formTitle">Login</h1>
+            <p class="subtitle" id="formSubtitle">Sign in to WA Bridge Dashboard</p>
+
+            <div class="error-msg" id="errorMsg"></div>
+            <div class="success-msg" id="successMsg"></div>
+
+            <form id="authForm">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="username" placeholder="Enter username" required />
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="password" placeholder="Enter password" required />
+                </div>
+                <button type="submit" class="btn btn-primary btn-block" id="submitBtn">Login</button>
+            </form>
+
+            <div class="toggle" id="toggleArea">
+                <span id="toggleText">Don't have an account?</span>
+                <a id="toggleLink" onclick="toggleMode()">Register</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isRegister = false;
+        const form = document.getElementById('authForm');
+        const errorMsg = document.getElementById('errorMsg');
+        const successMsg = document.getElementById('successMsg');
+
+        // Check if already logged in
+        if (localStorage.getItem('wa_token')) {
+            window.location.href = '/';
+        }
+
+        // Check if setup is needed
+        fetch('/api/auth/check')
+            .then(r => r.json())
+            .then(data => {
+                if (data.needsSetup) {
+                    isRegister = true;
+                    updateUI();
+                }
+            }).catch(() => { });
+
+        function toggleMode() {
+            isRegister = !isRegister;
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('formTitle').textContent = isRegister ? 'Create Account' : 'Login';
+            document.getElementById('formSubtitle').textContent = isRegister ? 'Set up your admin account' : 'Sign in to WA Bridge Dashboard';
+            document.getElementById('submitBtn').textContent = isRegister ? 'Create Account' : 'Login';
+            document.getElementById('toggleText').textContent = isRegister ? 'Already have an account? ' : "Don't have an account? ";
+            document.getElementById('toggleLink').textContent = isRegister ? 'Login' : 'Register';
+            errorMsg.style.display = 'none';
+            successMsg.style.display = 'none';
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorMsg.style.display = 'none';
+            successMsg.style.display = 'none';
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+
+            const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
+
+            try {
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password }),
+                });
+                const data = await res.json();
+
+                if (!data.success) {
+                    errorMsg.textContent = data.error;
+                    errorMsg.style.display = 'block';
+                    return;
+                }
+
+                localStorage.setItem('wa_token', data.data.token);
+                localStorage.setItem('wa_user', data.data.username);
+                window.location.href = '/';
+            } catch (err) {
+                errorMsg.textContent = 'Connection error';
+                errorMsg.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+
+</html>
