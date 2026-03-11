@@ -183,12 +183,14 @@ func ForwardToChatwoot(sessionID string, inboxID string, data map[string]interfa
 	// Search contact
 	contactID := searchOrCreateContact(baseURL, cfg.ChatwootAPIKey, inboxID, phone, name)
 	if contactID == 0 {
+		fmt.Printf("[ForwardToChatwoot] Failed to search or create contact for phone: %s\n", phone)
 		return
 	}
 
 	// Get or create conversation
 	convID := getOrCreateConversation(baseURL, cfg.ChatwootAPIKey, inboxID, contactID)
 	if convID == 0 {
+		fmt.Printf("[ForwardToChatwoot] Failed to get or create conversation for contactID: %d\n", contactID)
 		return
 	}
 
@@ -200,10 +202,11 @@ func ForwardToChatwoot(sessionID string, inboxID string, data map[string]interfa
 	caption, _ := data["caption"].(string)
 
 	if mediaDataB64 != "" && mediaType != "" {
+		fmt.Printf("[ForwardToChatwoot] Processing media type: %s\n", mediaType)
 		// Decode base64 media
 		mediaBytes, err := base64Decode(mediaDataB64)
 		if err != nil {
-			// Fallback to text
+			fmt.Printf("[ForwardToChatwoot] Error decoding base64: %v, falling back to text\n", err)
 			sendChatwootMessage(baseURL, cfg.ChatwootAPIKey, convID, preview)
 			return
 		}
@@ -220,10 +223,8 @@ func ForwardToChatwoot(sessionID string, inboxID string, data map[string]interfa
 			content = preview
 		}
 
-		// Send as multipart with attachment
 		sendChatwootMediaMessage(baseURL, cfg.ChatwootAPIKey, convID, content, mediaBytes, filename, mimetype)
 	} else {
-		// Text only
 		sendChatwootMessage(baseURL, cfg.ChatwootAPIKey, convID, preview)
 	}
 }
@@ -234,6 +235,7 @@ func searchOrCreateContact(baseURL, apiKey, inboxID, phone, name string) int {
 	req.Header.Set("api_access_token", apiKey)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		fmt.Printf("[searchOrCreateContact] Error on search request: %v\n", err)
 		return 0
 	}
 	defer resp.Body.Close()
@@ -247,14 +249,18 @@ func searchOrCreateContact(baseURL, apiKey, inboxID, phone, name string) int {
 				// Verify exact match to avoid fuzzy search collisions
 				pid, _ := c["identifier"].(string)
 				pnum, _ := c["phone_number"].(string)
-				if pid == phone || pnum == "+"+phone || pnum == phone {
+
+				if pid == phone || pnum == "+"+phone || pnum == phone || pid == "+"+phone {
 					if id, ok := c["id"].(float64); ok {
+						fmt.Printf("[searchOrCreateContact] Found exact match contact ID: %v\n", id)
 						return int(id)
 					}
 				}
 			}
 		}
 	}
+
+	fmt.Printf("[searchOrCreateContact] Exact match not found for %s, creating new contact...\n", phone)
 
 	// Create
 	body, _ := json.Marshal(map[string]interface{}{
@@ -268,20 +274,25 @@ func searchOrCreateContact(baseURL, apiKey, inboxID, phone, name string) int {
 	req2.Header.Set("Content-Type", "application/json")
 	resp2, err := http.DefaultClient.Do(req2)
 	if err != nil {
+		fmt.Printf("[searchOrCreateContact] Error on create request: %v\n", err)
 		return 0
 	}
 	defer resp2.Body.Close()
 
+	bodyBytes, _ := io.ReadAll(resp2.Body)
 	var createResult map[string]interface{}
-	json.NewDecoder(resp2.Body).Decode(&createResult)
+	json.Unmarshal(bodyBytes, &createResult)
 
 	if payload, ok := createResult["payload"].(map[string]interface{}); ok {
 		if contact, ok := payload["contact"].(map[string]interface{}); ok {
 			if id, ok := contact["id"].(float64); ok {
+				fmt.Printf("[searchOrCreateContact] Successfully created contact ID: %v\n", id)
 				return int(id)
 			}
 		}
 	}
+
+	fmt.Printf("[searchOrCreateContact] Failed to create contact, Chatwoot response: %s\n", string(bodyBytes))
 	return 0
 }
 
@@ -311,9 +322,11 @@ func getOrCreateConversation(baseURL, apiKey, inboxID string, contactID int) int
 	}
 
 	// Create conversation
+	fmt.Printf("[getOrCreateConversation] No open conversation found for contactID: %d. Creating new conversation...\n", contactID)
 	body, _ := json.Marshal(map[string]interface{}{
 		"contact_id": contactID,
 		"inbox_id":   inboxID,
+		"source_id":  fmt.Sprintf("wa-%d", contactID),
 		"status":     "open",
 	})
 	req2, _ := http.NewRequest("POST", baseURL+"/conversations", bytes.NewReader(body))
@@ -321,15 +334,20 @@ func getOrCreateConversation(baseURL, apiKey, inboxID string, contactID int) int
 	req2.Header.Set("Content-Type", "application/json")
 	resp2, err := http.DefaultClient.Do(req2)
 	if err != nil {
+		fmt.Printf("[getOrCreateConversation] Error on create request: %v\n", err)
 		return 0
 	}
 	defer resp2.Body.Close()
 
+	bodyBytes, _ := io.ReadAll(resp2.Body)
 	var convResult map[string]interface{}
-	json.NewDecoder(resp2.Body).Decode(&convResult)
+	json.Unmarshal(bodyBytes, &convResult)
 	if id, ok := convResult["id"].(float64); ok {
+		fmt.Printf("[getOrCreateConversation] Successfully created conversation ID: %v\n", id)
 		return int(id)
 	}
+
+	fmt.Printf("[getOrCreateConversation] Failed to create conversation, Chatwoot response: %s\n", string(bodyBytes))
 	return 0
 }
 
