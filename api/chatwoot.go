@@ -242,9 +242,16 @@ func searchOrCreateContact(baseURL, apiKey, inboxID, phone, name string) int {
 	json.NewDecoder(resp.Body).Decode(&searchResult)
 
 	if payload, ok := searchResult["payload"].([]interface{}); ok && len(payload) > 0 {
-		if c, ok := payload[0].(map[string]interface{}); ok {
-			if id, ok := c["id"].(float64); ok {
-				return int(id)
+		for _, v := range payload {
+			if c, ok := v.(map[string]interface{}); ok {
+				// Verify exact match to avoid fuzzy search collisions
+				pid, _ := c["identifier"].(string)
+				pnum, _ := c["phone_number"].(string)
+				if pid == phone || pnum == "+"+phone || pnum == phone {
+					if id, ok := c["id"].(float64); ok {
+						return int(id)
+					}
+				}
 			}
 		}
 	}
