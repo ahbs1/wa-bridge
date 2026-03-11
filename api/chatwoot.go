@@ -137,12 +137,19 @@ func ChatwootWebhook(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("[Chatwoot Webhook] Content to send: '%s'\n", content)
+
 	// Send text
 	if content != "" {
+		fmt.Printf("[Chatwoot Webhook] Calling session.SendText...\n")
 		if _, err := session.SendText(jid, content); err != nil {
+			fmt.Printf("[Chatwoot Webhook] SendText ERROR: %v\n", err)
 			c.JSON(500, gin.H{"success": false, "error": err.Error()})
 			return
 		}
+		fmt.Printf("[Chatwoot Webhook] SendText SUCCESS!\n")
+	} else {
+		fmt.Printf("[Chatwoot Webhook] Content is empty, skipping SendText.\n")
 	}
 
 	c.JSON(200, gin.H{"status": "sent"})
