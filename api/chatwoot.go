@@ -32,14 +32,18 @@ func ChatwootWebhook(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("\n[Chatwoot Webhook] Received message_created (outgoing)\n")
+
 	// Check if private
 	if prv, ok := payload["private"].(bool); ok && prv {
+		fmt.Println("[Chatwoot Webhook] Ignored private message")
 		c.JSON(200, gin.H{"status": "ignored_private"})
 		return
 	}
 
 	conv, _ := payload["conversation"].(map[string]interface{})
 	if conv == nil {
+		fmt.Println("[Chatwoot Webhook] No conversation object in payload")
 		c.JSON(200, gin.H{"status": "no_conversation"})
 		return
 	}
@@ -52,9 +56,17 @@ func ChatwootWebhook(c *gin.Context) {
 		}
 	}
 	if phone == "" {
+		fmt.Println("[Chatwoot Webhook] Could not find phone_number in conversation.meta.sender")
+
+		// Let's dump the payload to see what's actually there
+		payloadJSON, _ := json.MarshalIndent(payload, "", "  ")
+		fmt.Printf("[Chatwoot Webhook] Full Payload:\n%s\n", string(payloadJSON))
+
 		c.JSON(200, gin.H{"status": "no_phone"})
 		return
 	}
+
+	fmt.Printf("[Chatwoot Webhook] Extracted phone: %s\n", phone)
 
 	// Clean phone
 	clean := ""
@@ -66,6 +78,8 @@ func ChatwootWebhook(c *gin.Context) {
 
 	// Find connected session
 	sessionID := c.Param("session")
+	fmt.Printf("[Chatwoot Webhook] Looking for session: %s\n", sessionID)
+
 	var session *whatsapp.WhatsAppSession
 	if sessionID != "" && sessionID != "default" {
 		if s := whatsapp.GlobalManager.Get(sessionID); s != nil && s.Status == whatsapp.StatusConnected {
@@ -83,12 +97,15 @@ func ChatwootWebhook(c *gin.Context) {
 	}
 
 	if session == nil {
+		fmt.Println("[Chatwoot Webhook] No connected session found")
 		c.JSON(503, gin.H{"success": false, "error": "No connected session"})
 		return
 	}
 
 	jid := parseJID(clean)
 	content, _ := payload["content"].(string)
+
+	fmt.Printf("[Chatwoot Webhook] Preparing to send to JID: %s\n", jid)
 
 	// Handle attachments
 	if attachments, ok := payload["attachments"].([]interface{}); ok && len(attachments) > 0 {
